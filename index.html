@@ -1,0 +1,545 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Simulasi E-Voting Pemilihan Kepala Desa</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #0f172a;
+            user-select: none;
+            -webkit-user-select: none;
+            touch-action: manipulation;
+        }
+
+        /* Responsive tablet kiosk container */
+        .kiosk-frame {
+            max-width: 960px;
+            height: 100vh;
+            max-height: 720px;
+            box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.7);
+        }
+
+        /* Header red gradient like official ballot */
+        .header-red {
+            background: linear-gradient(180deg, #dc2626 0%, #b91c1c 100%);
+        }
+
+        /* Candidate card selection effect */
+        .candidate-card {
+            transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+        
+        .candidate-card.selected {
+            border-color: #dc2626 !important;
+            box-shadow: 0 0 0 5px rgba(220, 38, 38, 0.4), 0 10px 15px -3px rgba(0, 0, 0, 0.3);
+            transform: translateY(-4px);
+        }
+
+        /* Printer & Receipt Animations */
+        .printer-body {
+            background: linear-gradient(180deg, #1f2937 0%, #111827 100%);
+            box-shadow: inset 0 2px 4px rgba(255, 255, 255, 0.1), 0 10px 25px rgba(0,0,0,0.5);
+        }
+
+        .receipt-paper {
+            width: 220px;
+            height: 0px;
+            background-color: #ffffff;
+            transition: height 2.5s ease-out;
+            overflow: hidden;
+            box-shadow: 0 10px 15px -3px rgba(0,0,0,0.2);
+            border-bottom-left-radius: 4px;
+            border-bottom-right-radius: 4px;
+        }
+
+        .receipt-paper.printed {
+            height: 290px;
+        }
+
+        /* Audit Box Drop Animation */
+        @keyframes dropIntoBox {
+            0% {
+                transform: translateY(0) scale(1) rotate(0deg);
+                opacity: 1;
+            }
+            50% {
+                transform: translateY(120px) scale(0.8) rotate(5deg);
+                opacity: 0.8;
+            }
+            100% {
+                transform: translateY(220px) scale(0.4) rotate(-10deg);
+                opacity: 0;
+            }
+        }
+
+        .animate-drop {
+            animation: dropIntoBox 1.2s forwards ease-in-out;
+        }
+
+        /* Coblosan / Punch Hole Effect (Kertas Sobek / Tembus Paku Pemilu) */
+        @keyframes coblosPunch {
+            0% {
+                transform: scale(3) rotate(-15deg);
+                opacity: 0;
+            }
+            50% {
+                transform: scale(0.9) rotate(5deg);
+                opacity: 1;
+            }
+            100% {
+                transform: scale(1) rotate(0deg);
+                opacity: 1;
+            }
+        }
+
+        .coblos-mark {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            width: 75px;
+            height: 75px;
+            z-index: 30;
+            pointer-events: none;
+            animation: coblosPunch 0.35s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards;
+            filter: drop-shadow(0px 4px 6px rgba(0, 0, 0, 0.6));
+        }
+
+        .hidden-section {
+            display: none !important;
+        }
+    </style>
+</head>
+<body class="h-screen w-screen flex items-center justify-center p-0 md:p-4 bg-gray-950 overflow-hidden">
+
+    <main class="kiosk-frame w-full bg-white md:rounded-2xl flex flex-col relative overflow-hidden border border-gray-800">
+
+        <!-- ================= 1. SCREEN VOTING (SURAT SUARA) ================= -->
+        <section id="screen-voting" class="h-full w-full flex flex-col justify-between bg-gray-100">
+            <!-- Header Surat Suara -->
+            <div class="header-red text-white py-3 md:py-4 px-4 text-center shadow-md relative">
+                <div class="flex justify-center items-center mb-1">
+                    <!-- Crest / Logo KPU / Desa -->
+                    <div class="w-10 h-10 bg-white/20 rounded-full flex items-center justify-center p-1 border border-white/40 shadow-inner">
+                        <svg class="w-6 h-6 text-yellow-300" fill="currentColor" viewBox="0 0 24 24">
+                            <path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"></path>
+                        </svg>
+                    </div>
+                </div>
+                <h1 class="text-xl md:text-2xl font-black tracking-wider uppercase drop-shadow-sm">SURAT SUARA</h1>
+                <p class="text-[10px] md:text-xs font-semibold leading-snug tracking-wide uppercase opacity-95">
+                    PEMILIHAN KEPALA DESA JAYA MEKAR<br>
+                    KECAMATAN CIBUGEL KABUPATEN SUMEDANG<br>
+                    MASA BAKTI 2026-2032
+                </p>
+            </div>
+
+            <!-- Candidates Grid (Displaying 4 Candidates like Image 6) -->
+            <div class="flex-1 p-3 md:p-6 flex items-center justify-center overflow-y-auto">
+                <div class="grid grid-cols-2 md:grid-cols-4 gap-3 md:gap-4 w-full max-w-4xl" id="candidates-container">
+                    <!-- Injected by JavaScript -->
+                </div>
+            </div>
+
+            <!-- Bottom Action Bar with Blue Button -->
+            <div class="p-4 bg-white border-t border-gray-200 flex justify-center items-center shadow-lg">
+                <button id="btn-pilih" disabled onclick="openConfirmationModal()" 
+                    class="w-full max-w-2xl bg-gray-300 text-gray-500 font-bold py-3.5 px-6 rounded-lg text-base md:text-lg uppercase tracking-wider transition-all duration-200 cursor-not-allowed">
+                    PILIH KANDIDAT INI
+                </button>
+            </div>
+        </section>
+
+        <!-- ================= 2. MODAL KONFIRMASI ================= -->
+        <div id="modal-konfirmasi" class="fixed inset-0 bg-black/75 backdrop-blur-sm z-50 flex justify-center items-center p-4 hidden-section">
+            <div class="bg-white rounded-2xl w-full max-w-sm overflow-hidden shadow-2xl flex flex-col items-center animate-in fade-in zoom-in duration-200">
+                <div class="w-full bg-gray-50 p-4 border-b text-center">
+                    <h3 class="text-lg font-bold text-gray-800">Konfirmasi Pemilihan</h3>
+                    <p class="text-xs text-gray-500 mt-0.5">Apa Anda yakin akan memilih kandidat ini?</p>
+                </div>
+                
+                <div class="p-5 flex flex-col items-center w-full">
+                    <div class="w-36 h-48 border-2 border-gray-300 rounded-lg overflow-hidden bg-gray-100 shadow-inner mb-3 relative">
+                        <img id="confirm-img" src="" alt="Kandidat" class="w-full h-full object-cover">
+                        <!-- Coblos Mark inside Modal Confirmation (Kertas Robek Tembus) -->
+                        <div id="modal-coblos-mark" class="coblos-mark flex items-center justify-center">
+                            <svg viewBox="0 0 100 100" class="w-full h-full">
+                                <!-- Dark Void / Holes inside Paper -->
+                                <circle cx="50" cy="50" r="18" fill="#09090b"/>
+                                <circle cx="50" cy="50" r="14" fill="#000000"/>
+                                
+                                <!-- Torn Paper Fiber Jagged Edges (Serabut Kertas Robek) -->
+                                <path d="M 50 20 L 55 33 L 64 25 L 63 36 L 75 32 L 68 42 L 80 47 L 70 53 L 78 62 L 66 63 L 70 75 L 59 70 L 56 82 L 49 71 L 41 81 L 41 68 L 28 73 L 34 61 L 20 58 L 31 51 L 22 41 L 34 39 L 27 28 L 39 32 L 41 20 Z" fill="#ffffff" stroke="#cbd5e1" stroke-width="1.5"/>
+                                
+                                <!-- Inner Hole Shadow overlay -->
+                                <polygon points="46,38 55,36 62,45 58,58 45,62 38,52" fill="#18181b"/>
+                                <circle cx="50" cy="50" r="11" fill="#000000"/>
+                            </svg>
+                        </div>
+                    </div>
+                    <p id="confirm-name" class="font-black text-gray-900 text-base uppercase tracking-wide text-center"></p>
+                    <p id="confirm-number" class="text-xs font-semibold text-gray-500 mt-0.5"></p>
+                </div>
+
+                <div class="flex w-full p-4 bg-gray-50 border-t space-x-3">
+                    <button id="btn-modal-ulangi" onclick="closeConfirmationModal()" class="flex-1 bg-red-600 hover:bg-red-700 active:scale-95 text-white font-bold py-3 rounded-lg text-sm transition uppercase">
+                        ULANGI
+                    </button>
+                    <button id="btn-modal-proses" onclick="processVote()" class="flex-1 bg-blue-600 hover:bg-blue-700 active:scale-95 text-white font-bold py-3 rounded-lg text-sm transition shadow-md shadow-blue-500/30 uppercase">
+                        PROSES
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- ================= 3. SCREEN PRINTER & KOTAK AUDIT ================= -->
+        <section id="screen-printing" class="h-full w-full bg-gray-900 flex flex-col justify-between items-center p-6 text-white hidden-section relative">
+            <div class="text-center mt-2">
+                <h2 id="print-status-title" class="text-xl md:text-2xl font-bold text-gray-100">Mencetak Bukti Pilihan...</h2>
+                <p id="print-status-desc" class="text-xs text-gray-400 mt-1">Harap tunggu sebentar sampai printer selesai mencetak</p>
+            </div>
+
+            <!-- Printer & Receipt Graphic Container -->
+            <div class="relative w-full flex flex-col items-center my-auto">
+                <!-- Thermal Printer Device -->
+                <div class="printer-body w-72 h-28 rounded-t-2xl border border-gray-700 flex flex-col items-center justify-end pb-3 z-20 relative">
+                    <div class="absolute top-3 left-4 flex space-x-1.5">
+                        <div class="w-2.5 h-2.5 rounded-full bg-green-500 animate-pulse"></div>
+                        <div class="w-2.5 h-2.5 rounded-full bg-blue-500"></div>
+                    </div>
+                    <div class="text-[10px] font-mono text-gray-400 mb-2 tracking-widest uppercase">THERMAL PRINTER</div>
+                    <!-- Slot slit -->
+                    <div class="w-56 h-2 bg-black rounded-full border border-gray-800"></div>
+                </div>
+
+                <!-- Receipt Paper -->
+                <div id="receipt-paper" class="receipt-paper z-10 flex flex-col items-center p-3 text-gray-900 font-mono">
+                    <div class="text-[11px] font-bold text-center border-b border-dashed border-gray-400 w-full pb-1 mb-2">
+                        BUKTI PILIHAN<br>E-VOTING PILKADES
+                    </div>
+                    
+                    <!-- Dynamic QR Code -->
+                    <img id="receipt-qr" src="" alt="QR Code" class="w-20 h-20 my-1">
+                    
+                    <p id="receipt-date" class="text-[9px] text-gray-500 text-center my-1"></p>
+                    
+                    <div class="w-full border-t border-b border-dashed border-gray-300 py-1.5 my-1 text-center">
+                        <p class="text-xs text-gray-600">NOMOR URUT KANDIDAT</p>
+                        <p id="receipt-number" class="text-2xl font-black text-gray-900"></p>
+                        <p id="receipt-name" class="text-sm font-bold uppercase text-gray-800"></p>
+                    </div>
+
+                    <p class="text-[8px] text-center text-gray-500 mt-1 leading-tight">
+                        Simpan struk ini dan masukkan ke dalam KOTAK AUDIT sebagai verifikasi.
+                    </p>
+                </div>
+
+                <!-- Transparent Glass Audit Box (Kotak Audit) -->
+                <div id="audit-box" class="w-80 h-36 border-2 border-white/20 bg-white/5 backdrop-blur-md rounded-xl mt-4 z-0 flex flex-col items-center justify-end p-2 relative overflow-hidden">
+                    <div class="absolute top-0 w-full h-1 bg-yellow-500/80"></div>
+                    <span class="text-xs font-bold text-white/40 tracking-wider mb-2">KOTAK AUDIT SURAT SUARA</span>
+                    
+                    <!-- Dropped receipts inside box -->
+                    <div class="w-full flex justify-center space-x-1 opacity-40">
+                        <div class="w-12 h-6 bg-white/80 rounded-sm rotate-12"></div>
+                        <div class="w-12 h-6 bg-white/70 rounded-sm -rotate-6"></div>
+                        <div class="w-12 h-6 bg-white/90 rounded-sm rotate-4"></div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Action Button for Audit Drop -->
+            <div class="w-full max-w-md pb-4 flex flex-col items-center z-30">
+                <button id="btn-audit" disabled onclick="dropToAuditBox()" 
+                    class="w-full bg-gray-700 text-gray-400 font-bold py-3.5 px-6 rounded-xl text-sm md:text-base uppercase tracking-wider transition-all duration-300 cursor-not-allowed">
+                    Ambil Struk & Masukkan ke Kotak Audit
+                </button>
+            </div>
+        </section>
+
+        <!-- ================= 4. SCREEN FINISH ================= -->
+        <section id="screen-finish" class="h-full w-full bg-white flex flex-col justify-center items-center p-8 text-center hidden-section">
+            <div class="w-20 h-20 bg-green-100 rounded-full flex items-center justify-center text-green-600 mb-6 animate-bounce">
+                <svg class="w-10 h-10" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="3" d="M5 13l4 4L19 7"></path>
+                </svg>
+            </div>
+            
+            <h2 class="text-2xl md:text-3xl font-black text-gray-900 mb-2">SUARA ANDA TELAH TERDAFTAR!</h2>
+            <p class="text-sm text-gray-600 max-w-md mb-8 leading-relaxed">
+                Terima kasih telah berpartisipasi dalam Simulasi Pemilihan Kepala Desa Karawang Kulon. Struk bukti telah berhasil dimasukkan ke Kotak Audit.
+            </p>
+
+            <button onclick="resetSimulation()" class="bg-blue-600 hover:bg-blue-700 active:scale-95 text-white font-bold py-3.5 px-8 rounded-xl shadow-lg transition">
+                Selesai (Siap Pemilih Berikutnya)
+            </button>
+        </section>
+
+    </main>
+
+    <script>
+        // High-fidelity fallback illustration for Pak Mulyana (Iket putih & Baju Putih dengan background Merah)
+        const mulyanaFallbackSvg = "data:image/svg+xml;utf8," + encodeURIComponent(`
+            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 300 400" width="300" height="400">
+                <rect width="300" height="400" fill="#dc2626"/>
+                <!-- Body / Shirt -->
+                <path d="M 50 400 C 50 310, 80 270, 150 270 C 220 270, 250 310, 250 400 Z" fill="#ffffff"/>
+                <path d="M 130 270 L 150 320 L 170 270 Z" fill="#e5e7eb"/>
+                <circle cx="150" cy="340" r="3" fill="#9ca3af"/>
+                <circle cx="150" cy="365" r="3" fill="#9ca3af"/>
+                <!-- Neck -->
+                <rect x="130" y="220" width="40" height="60" fill="#d97706" rx="5"/>
+                <!-- Head -->
+                <ellipse cx="150" cy="180" rx="55" ry="65" fill="#f59e0b"/>
+                <!-- Eyes -->
+                <ellipse cx="130" cy="175" rx="7" ry="4" fill="#1f2937"/>
+                <ellipse cx="170" cy="175" rx="7" ry="4" fill="#1f2937"/>
+                <circle cx="130" cy="174" r="2" fill="#ffffff"/>
+                <circle cx="170" cy="174" r="2" fill="#ffffff"/>
+                <!-- Eyebrows -->
+                <path d="M 118 165 Q 130 160 140 166" stroke="#4b5563" stroke-width="3" fill="none"/>
+                <path d="M 160 166 Q 170 160 182 165" stroke="#4b5563" stroke-width="3" fill="none"/>
+                <!-- Nose & Mouth -->
+                <path d="M 150 175 L 146 195 L 154 195" stroke="#b45309" stroke-width="2.5" fill="none"/>
+                <path d="M 135 210 Q 150 220 165 210" stroke="#b45309" stroke-width="3" fill="none"/>
+                <!-- Sundanese Headband (Iket Sunda Putih) -->
+                <path d="M 90 150 C 90 110, 210 110, 210 150 C 220 135, 210 120, 150 118 C 90 120, 80 135, 90 150 Z" fill="#ffffff"/>
+                <path d="M 135 125 L 150 100 L 165 125 Z" fill="#f3f4f6" stroke="#e5e7eb" stroke-width="2"/>
+                <circle cx="150" cy="123" r="6" fill="#ffffff"/>
+            </svg>
+        `);
+
+        // Candidate Setup with Multiple Drive Proxy Sources + Robust Fallback
+        const driveId = "1e1hIJhaWt7BJX4lDHXCcmNQryNk3TEdJ";
+        const primaryDriveUrl = `https://lh3.googleusercontent.com/d/${driveId}=s800`;
+        const secondaryDriveUrl = `https://drive.google.com/uc?export=view&id=${driveId}`;
+
+        const candidates = [
+            { 
+                id: 1, 
+                name: "", 
+                img: "https://placehold.co/300x400/f3f4f6/9ca3af?text=+" 
+            },
+            { 
+                id: 2, 
+                name: "", 
+                img: "https://placehold.co/300x400/f3f4f6/9ca3af?text=+" 
+            },
+            { 
+                id: 3, 
+                name: "MULYANA", 
+                img: primaryDriveUrl 
+            },
+            { 
+                id: 4, 
+                name: "", 
+                img: "https://placehold.co/300x400/f3f4f6/9ca3af?text=+" 
+            }
+        ];
+
+        let selectedCandidateId = null;
+
+        // DOM Elements
+        const screenVoting = document.getElementById('screen-voting');
+        const candidatesContainer = document.getElementById('candidates-container');
+        const btnPilih = document.getElementById('btn-pilih');
+        const modalKonfirmasi = document.getElementById('modal-konfirmasi');
+        const screenPrinting = document.getElementById('screen-printing');
+        const screenFinish = document.getElementById('screen-finish');
+
+        function renderCandidates() {
+            candidatesContainer.innerHTML = '';
+            candidates.forEach(c => {
+                const card = document.createElement('div');
+                card.className = 'candidate-card bg-white border-2 border-gray-300 rounded-lg overflow-hidden cursor-pointer flex flex-col justify-between relative shadow-sm hover:border-gray-400';
+                card.id = `candidate-${c.id}`;
+                card.onclick = () => selectCandidate(c.id);
+
+                card.innerHTML = `
+                    <div class="bg-gray-100 font-black text-center py-1.5 text-lg border-b border-gray-300 text-gray-800">${c.id}</div>
+                    <div class="p-2 flex-1 flex items-center justify-center bg-gray-50 min-h-[160px] md:min-h-[220px] relative">
+                        <img id="img-candidate-${c.id}"
+                             src="${c.img}" 
+                             onerror="handleImageError(this, ${c.id})" 
+                             alt="${c.name || 'Kandidat'}" 
+                             class="w-full h-full object-cover rounded border border-gray-200">
+                    </div>
+                    <div class="font-black text-center py-2 px-1 text-xs md:text-sm border-t border-gray-300 uppercase text-gray-900 bg-white min-h-[36px] flex items-center justify-center">
+                        ${c.name}
+                    </div>
+                `;
+                candidatesContainer.appendChild(card);
+            });
+        }
+
+        // Image Failover mechanism for Drive images
+        function handleImageError(imgEl, candidateId) {
+            if (candidateId === 3) {
+                if (imgEl.src !== secondaryDriveUrl && !imgEl.dataset.retried) {
+                    imgEl.dataset.retried = "true";
+                    imgEl.src = secondaryDriveUrl;
+                } else {
+                    imgEl.src = mulyanaFallbackSvg;
+                }
+            } else {
+                imgEl.src = "https://placehold.co/300x400/f3f4f6/9ca3af?text=+";
+            }
+        }
+
+        function selectCandidate(id) {
+            selectedCandidateId = id;
+
+            // Remove selected style and existing coblos marks from all cards
+            document.querySelectorAll('.candidate-card').forEach(card => {
+                card.classList.remove('selected');
+            });
+            document.querySelectorAll('.coblos-mark').forEach(mark => mark.remove());
+
+            // Highlight selected card and add Coblos Mark INSTANTLY
+            const selectedCard = document.getElementById(`candidate-${id}`);
+            if (selectedCard) {
+                selectedCard.classList.add('selected');
+
+                // Create and attach realistic paper tear punch hole mark
+                const mark = document.createElement('div');
+                mark.className = 'coblos-mark flex items-center justify-center';
+                mark.innerHTML = `
+                    <svg viewBox="0 0 100 100" class="w-full h-full">
+                        <!-- Dark Void / Holes inside Paper -->
+                        <circle cx="50" cy="50" r="18" fill="#09090b"/>
+                        <circle cx="50" cy="50" r="14" fill="#000000"/>
+                        
+                        <!-- Torn Paper Fiber Jagged Edges (Serabut Kertas Robek) -->
+                        <path d="M 50 20 L 55 33 L 64 25 L 63 36 L 75 32 L 68 42 L 80 47 L 70 53 L 78 62 L 66 63 L 70 75 L 59 70 L 56 82 L 49 71 L 41 81 L 41 68 L 28 73 L 34 61 L 20 58 L 31 51 L 22 41 L 34 39 L 27 28 L 39 32 L 41 20 Z" fill="#ffffff" stroke="#cbd5e1" stroke-width="1.5"/>
+                        
+                        <!-- Inner Hole Shadow overlay -->
+                        <polygon points="46,38 55,36 62,45 58,58 45,62 38,52" fill="#18181b"/>
+                        <circle cx="50" cy="50" r="11" fill="#000000"/>
+                    </svg>
+                `;
+                selectedCard.appendChild(mark);
+            }
+
+            // Enable bottom blue button
+            btnPilih.disabled = false;
+            btnPilih.className = "w-full max-w-2xl bg-blue-600 hover:bg-blue-700 active:scale-98 text-white font-bold py-3.5 px-6 rounded-lg text-base md:text-lg uppercase tracking-wider transition-all duration-200 shadow-lg shadow-blue-500/30 cursor-pointer";
+        }
+
+        function openConfirmationModal() {
+            if (!selectedCandidateId) return;
+            const candidate = candidates.find(c => c.id === selectedCandidateId);
+            const activeImg = document.getElementById(`img-candidate-${candidate.id}`).src;
+            
+            document.getElementById('confirm-img').src = activeImg;
+            document.getElementById('confirm-name').textContent = candidate.name || `KANDIDAT NO ${candidate.id}`;
+            document.getElementById('confirm-number').textContent = `Nomor Urut: ${candidate.id}`;
+
+            modalKonfirmasi.classList.remove('hidden-section');
+        }
+
+        function closeConfirmationModal() {
+            modalKonfirmasi.classList.add('hidden-section');
+        }
+
+        function processVote() {
+            const btnProses = document.getElementById('btn-modal-proses');
+            const btnUlangi = document.getElementById('btn-modal-ulangi');
+
+            btnProses.disabled = true;
+            btnUlangi.disabled = true;
+
+            setTimeout(() => {
+                btnProses.disabled = false;
+                btnUlangi.disabled = false;
+                closeConfirmationModal();
+
+                screenVoting.classList.add('hidden-section');
+                screenPrinting.classList.remove('hidden-section');
+
+                const candidate = candidates.find(c => c.id === selectedCandidateId);
+                const now = new Date();
+
+                // Setup receipt contents
+                document.getElementById('receipt-number').textContent = candidate.id;
+                document.getElementById('receipt-name').textContent = candidate.name || `KANDIDAT NO ${candidate.id}`;
+                document.getElementById('receipt-date').textContent = now.toLocaleString('id-ID', {
+                    dateStyle: 'medium',
+                    timeStyle: 'short'
+                });
+
+                // Generate real dynamic QR Code for the receipt
+                const qrData = encodeURIComponent(`EVOTE-PILKADES-2026-CANDIDATE-${candidate.id}-${now.getTime()}`);
+                document.getElementById('receipt-qr').src = `https://api.qrserver.com/v1/create-qr-code/?size=150x150&data=${qrData}`;
+
+                // Trigger printing animation
+                setTimeout(() => {
+                    document.getElementById('receipt-paper').classList.add('printed');
+
+                    setTimeout(() => {
+                        document.getElementById('print-status-title').textContent = "Struk Berhasil Dicetak!";
+                        document.getElementById('print-status-title').className = "text-xl md:text-2xl font-bold text-green-400";
+                        document.getElementById('print-status-desc').textContent = "Silakan tekan tombol di bawah untuk memasukkan struk ke Kotak Audit";
+                        
+                        // Enable audit button
+                        const btnAudit = document.getElementById('btn-audit');
+                        btnAudit.disabled = false;
+                        btnAudit.className = "w-full bg-blue-600 hover:bg-blue-700 active:scale-95 text-white font-bold py-3.5 px-6 rounded-xl text-sm md:text-base uppercase tracking-wider transition-all duration-200 shadow-lg shadow-blue-500/30 cursor-pointer animate-pulse";
+                    }, 2600);
+                }, 400);
+            }, 300);
+        }
+
+        function dropToAuditBox() {
+            const receiptPaper = document.getElementById('receipt-paper');
+            const btnAudit = document.getElementById('btn-audit');
+            
+            btnAudit.disabled = true;
+            receiptPaper.classList.add('animate-drop');
+
+            setTimeout(() => {
+                screenPrinting.classList.add('hidden-section');
+                screenFinish.classList.remove('hidden-section');
+            }, 1300);
+        }
+
+        function resetSimulation() {
+            selectedCandidateId = null;
+
+            // Clean up coblos marks
+            document.querySelectorAll('.coblos-mark').forEach(m => m.remove());
+
+            // Reset receipt elements
+            const receiptPaper = document.getElementById('receipt-paper');
+            receiptPaper.classList.remove('printed', 'animate-drop');
+            
+            document.getElementById('print-status-title').textContent = "Mencetak Bukti Pilihan...";
+            document.getElementById('print-status-title').className = "text-xl md:text-2xl font-bold text-gray-100";
+            document.getElementById('print-status-desc').textContent = "Harap tunggu sebentar sampai printer selesai mencetak";
+            
+            const btnAudit = document.getElementById('btn-audit');
+            btnAudit.disabled = true;
+            btnAudit.className = "w-full bg-gray-700 text-gray-400 font-bold py-3.5 px-6 rounded-xl text-sm md:text-base uppercase tracking-wider transition-all duration-300 cursor-not-allowed";
+
+            // Reset button state on voting page
+            btnPilih.disabled = true;
+            btnPilih.className = "w-full max-w-2xl bg-gray-300 text-gray-500 font-bold py-3.5 px-6 rounded-lg text-base md:text-lg uppercase tracking-wider transition-all duration-200 cursor-not-allowed";
+
+            // Return back to voting page
+            screenFinish.classList.add('hidden-section');
+            screenPrinting.classList.add('hidden-section');
+            screenVoting.classList.remove('hidden-section');
+            renderCandidates();
+        }
+
+        // Initialize on page load directly to voting screen
+        window.onload = function() {
+            renderCandidates();
+        };
+    </script>
+</body>
+</html>
